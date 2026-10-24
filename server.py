@@ -123,6 +123,35 @@ def replace_in_file(repo: str, path: str, old: str, new: str, message: str, bran
 
 
 @mcp.tool()
+def create_pull_request(repo: str, head: str, base: str, title: str, body: str = "") -> str:
+    """Open a pull request from head into base. Returns its URL."""
+    return gh("POST", f"/repos/{repo}/pulls", json={"title": title, "head": head, "base": base, "body": body})["html_url"]
+
+
+@mcp.tool()
+def run_workflow(repo: str, workflow: str, ref: str) -> str:
+    """Start a workflow_dispatch run. workflow is the file name (e.g. ios.yml), ref is the branch."""
+    r = httpx.post(
+        f"https://api.github.com/repos/{repo}/actions/workflows/{workflow}/dispatches",
+        headers=H,
+        json={"ref": ref},
+        timeout=30,
+    )
+    r.raise_for_status()
+    return f"Started {workflow} on {ref}"
+
+
+@mcp.tool()
+def list_workflow_runs(repo: str, branch: str = "") -> list[str]:
+    """Latest workflow runs: id, name, status/conclusion and link."""
+    params = {"per_page": 5}
+    if branch:
+        params["branch"] = branch
+    runs = gh("GET", f"/repos/{repo}/actions/runs", params=params)["workflow_runs"]
+    return [f'{r["id"]} {r["name"]} {r["status"]}/{r["conclusion"]} {r["html_url"]}' for r in runs]
+
+
+@mcp.tool()
 def list_issues(repo: str, state: str = "open") -> list[str]:
     """List issues in a repo."""
     return [
