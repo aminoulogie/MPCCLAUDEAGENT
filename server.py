@@ -152,6 +152,22 @@ def list_workflow_runs(repo: str, branch: str = "") -> list[str]:
 
 
 @mcp.tool()
+def merge_branch(repo: str, base: str, head: str, message: str = "") -> str:
+    """Merge branch head into branch base with a merge commit (no pull request). Reports conflicts instead of failing."""
+    body = {"base": base, "head": head}
+    if message:
+        body["commit_message"] = message
+    r = httpx.post(f"https://api.github.com/repos/{repo}/merges", headers=H, json=body, timeout=60)
+    if r.status_code == 201:
+        return f"Merged {head} into {base}: {r.json()['html_url']}"
+    if r.status_code == 204:
+        return f"Nothing to merge: {base} already contains {head}."
+    if r.status_code == 409:
+        return f"Merge conflict between {head} and {base}. Nothing changed."
+    return f"Merge failed ({r.status_code}): {r.text[:300]}"
+
+
+@mcp.tool()
 def list_issues(repo: str, state: str = "open") -> list[str]:
     """List issues in a repo."""
     return [
