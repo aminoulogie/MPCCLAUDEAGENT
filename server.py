@@ -184,8 +184,20 @@ def get_run_failure(repo: str, run_id: int, tail: int = 80) -> str:
                 notes = gh("GET", f'/repos/{repo}/check-runs/{j["id"]}/annotations')
                 for n in notes[:10]:
                     out.append(f'annotation [{n.get("annotation_level")}]: {(n.get("message") or "")[:500]}')
+            except httpx.HTTPStatusError as e:
+                resp = e.response
+                needed = resp.headers.get("x-accepted-github-permissions", "")
+                out.append(f"(could not read annotations: HTTP {resp.status_code} {resp.text[:300]})")
+                if resp.status_code in (401, 403):
+                    out.append(
+                        "The GITHUB_TOKEN on Render needs 'Checks: Read' (fine-grained token) or the 'repo' scope (classic token)"
+                        + (f"; GitHub says it accepts: {needed}" if needed else "")
+                        + "."
+                    )
             except Exception as e:
                 out.append(f"(could not read annotations: {e})")
+            if not j.get("runner_name") and not j.get("steps"):
+                out.append("This job never got a runner, so there are no logs. Check Actions billing/spending limit and runner availability for the repo.")
             continue
         lines = [l.split(" ", 1)[-1][:300] if l[:2] == "20" else l[:300] for l in r.text.splitlines()]
         out.append("\n".join(lines[-max(10, min(tail, 300)):]))
