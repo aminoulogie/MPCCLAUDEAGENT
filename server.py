@@ -164,6 +164,9 @@ def get_run_failure(repo: str, run_id: int, tail: int = 80) -> str:
     failed = [j for j in jobs if j["conclusion"] == "failure"]
     if not failed:
         out.append("No failed jobs. " + ", ".join(f'{j["name"]}={j["conclusion"]}' for j in jobs))
+        for j in jobs:
+            out.append(f'{j["name"]} steps: ' + "; ".join(f'{s["name"]}={s["conclusion"]}' for s in j["steps"]))
+        out.append(f'run_number={run["run_number"]} event={run["event"]} tag=v1.0.{run["run_number"]}')
     for j in failed:
         steps = [s["name"] for s in j["steps"] if s["conclusion"] == "failure"]
         out.append(f'\nJob "{j["name"]}" failed at step: {", ".join(steps) or "unknown"}')
