@@ -175,6 +175,14 @@ def get_run_failure(repo: str, run_id: int, tail: int = 80) -> str:
         )
         if r.status_code != 200:
             out.append(f"(could not fetch log: HTTP {r.status_code})")
+            out.append(f'job status={j["status"]} runner={j.get("runner_name")} started={j.get("started_at")} completed={j.get("completed_at")}')
+            out.append("steps: " + (", ".join(f'{s["name"]}={s["conclusion"]}' for s in j["steps"]) or "none ran"))
+            try:
+                notes = gh("GET", f'/repos/{repo}/check-runs/{j["id"]}/annotations')
+                for n in notes[:10]:
+                    out.append(f'annotation [{n.get("annotation_level")}]: {(n.get("message") or "")[:500]}')
+            except Exception as e:
+                out.append(f"(could not read annotations: {e})")
             continue
         lines = [l.split(" ", 1)[-1][:300] if l[:2] == "20" else l[:300] for l in r.text.splitlines()]
         out.append("\n".join(lines[-max(10, min(tail, 300)):]))
