@@ -148,7 +148,37 @@ def list_workflow_runs(repo: str, branch: str = "") -> list[str]:
     if branch:
         params["branch"] = branch
     runs = gh("GET", f"/repos/{repo}/actions/runs", params=params)["workflow_runs"]
-    return [f'{r["id"]} {r["name"]} {r["status"]}/{r["conclusion"]} {r["html_url"]}' for r in runs]
+    return [
+        f'{r["id"]} {r["name"]} {r["status"]}/{r["conclusion"]} branch={r["head_branch"]} sha={r["head_sha"][:7]} {r["html_url"]}'
+        for r in runs
+    ]
+
+
+@mcp.tool()
+def get_run_failure(repo: str, run_id: int, tail: int = 80) -> str:
+    """For a workflow run: branch, commit, which job and step failed, and the last log lines of each failed job."""
+    run = gh("GET", f"/repos/{repo}/actions/runs/{run_id}")
+    jobs = gh("GET", f"/repos/{repo}/actions/runs/{run_id}/jobs", params={"per_page": 50})["jobs"]
+    commit = ((run.get("head_commit") or {}).get("message") or "").splitlines()[:1]
+    out = [f'Run {run_id}: branch {run["head_branch"]}, commit {run["head_sha"][:7]} {commit[0][:100] if commit else ""}']
+    failed = [j for j in jobs if j["conclusion"] == "failure"]
+    if not failed:
+        out.append("No failed jobs. " + ", ".join(f'{j["name"]}={j["conclusion"]}' for j in jobs))
+    for j in failed:
+        steps = [s["name"] for s in j["steps"] if s["conclusion"] == "failure"]
+        out.append(f'\nJob "{j["name"]}" failed at step: {", ".join(steps) or "unknown"}')
+        r = httpx.get(
+            f'https://api.github.com/repos/{repo}/actions/jobs/{j["id"]}/logs',
+            headers=H,
+            timeout=60,
+            follow_redirects=True,
+        )
+        if r.status_code != 200:
+            out.append(f"(could not fetch log: HTTP {r.status_code})")
+            continue
+        lines = [l.split(" ", 1)[-1][:300] if l[:2] == "20" else l[:300] for l in r.text.splitlines()]
+        out.append("\n".join(lines[-max(10, min(tail, 300)):]))
+    return "\n".join(out)
 
 
 @mcp.tool()
