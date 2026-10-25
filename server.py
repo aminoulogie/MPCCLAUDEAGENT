@@ -149,7 +149,7 @@ def list_workflow_runs(repo: str, branch: str = "") -> list[str]:
         params["branch"] = branch
     runs = gh("GET", f"/repos/{repo}/actions/runs", params=params)["workflow_runs"]
     return [
-        f'{r["id"]} {r["name"]} {r["status"]}/{r["conclusion"]} branch={r["head_branch"]} sha={r["head_sha"][:7]} {r["html_url"]}'
+        f'{r["id"]} {r["name"]} v1.0.{r["run_number"]} {r["status"]}/{r["conclusion"]} branch={r["head_branch"]} sha={r["head_sha"][:7]} {r["html_url"]}'
         for r in runs
     ]
 
